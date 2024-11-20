@@ -36,7 +36,7 @@
         </div>
       </div>
     </div>
-
+  </div>
     <div v-if="images.length > 0" class="pagination">
       <div class="page-numbers">
         <template v-if="pageNumbers[0] > 1">
@@ -463,6 +463,31 @@ onMounted(() => {
   background: none;
   border: none;
   color: #3b82f6;
+  cursor: pointer;
+}
+/* 调整按钮容器的间距 */
+.action-buttons {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 1rem; /* 添加按钮间距 */
+}
+
+.delete-btn {
+  background-color: #f87171;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.copy-btn {
+  background-color: #60a5fa;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
   cursor: pointer;
 }
 }
