@@ -10,15 +10,11 @@
           <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll">
           全选
         </label>
-
-
       </div>
     </div>
 
     <div v-if="loading" class="loading">加载中...</div>
-
     <div v-else-if="error" class="error">{{ error }}</div>
-
     <div v-else-if="images.length === 0" class="empty">
       暂无图片，请上传
     </div>
@@ -33,7 +29,10 @@
           @click="openPreview(image.url)" class="preview-cursor">
         <div class="image-info">
           <span class="image-name">{{ image.name }}</span>
-          <button class="delete-btn" @click="handleDelete(image.url)">删除</button>
+          <div class="action-buttons">
+            <button class="delete-btn" @click="handleDelete(image.url)">删除</button>
+            <button class="copy-btn" @click="copyLink(image.url)">复制链接</button>
+          </div>
         </div>
       </div>
     </div>
@@ -47,11 +46,8 @@
           <span v-if="pageNumbers[0] > 2" class="page-ellipsis">...</span>
         </template>
 
-        <button v-for="num in pageNumbers" :key="num" :class="[
-          'page-btn',
-          'page-number',
-          { active: currentPage === num }
-        ]" @click="handlePageChange(num)">
+        <button v-for="num in pageNumbers" :key="num" :class="[ 'page-btn', 'page-number', { active: currentPage === num } ]" 
+          @click="handlePageChange(num)">
           {{ num }}
         </button>
 
@@ -75,158 +71,149 @@
 
 <script setup>
 import useApi from '~/services/api';
-import { toast } from '~/composables/useToast'
+import { toast } from '~/composables/useToast';
+import { ref, computed, onMounted } from 'vue';
 
+// 用户信息与图片列表状态
+const images = ref([]);
+const loading = ref(true);
+const error = ref('');
+const user = useState('user', () => null);
 
-definePageMeta({
-  middleware: 'auth'
-})
+// 分页相关变量
+const currentPage = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+const totalPages = ref(0);
 
-const images = ref([])
-const loading = ref(true)
-const error = ref('')
-const user = useState('user', () => null)
+// 选中图片数组
+const selectedImages = ref([]);
 
-// 添加分页相关的响应式变量
-const currentPage = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const totalPages = ref(0)
-
-// 添加选中图片数组
-const selectedImages = ref([])
-
-// 添加预览相关的状态和方法
-const previewImage = ref(null)
-
-// 打开预览
+// 预览相关状态
+const previewImage = ref(null);
 const openPreview = (imageUrl) => {
-  previewImage.value = imageUrl
-}
-
-// 关闭预览
+  previewImage.value = imageUrl;
+};
 const closePreview = () => {
-  previewImage.value = null
-}
+  previewImage.value = null;
+};
 
-// 添加全选相关的计算属性
+// 全选相关计算属性
 const isAllSelected = computed(() => {
-  return images.value.length > 0 && images.value.length === selectedImages.value.length
-})
-
-// 切换图片选择状态
+  return images.value.length > 0 && images.value.length === selectedImages.value.length;
+});
 const toggleImageSelection = (imageUrl) => {
-  const index = selectedImages.value.indexOf(imageUrl)
+  const index = selectedImages.value.indexOf(imageUrl);
   if (index === -1) {
-    selectedImages.value.push(imageUrl)
+    selectedImages.value.push(imageUrl);
   } else {
-    selectedImages.value.splice(index, 1)
+    selectedImages.value.splice(index, 1);
   }
-}
+};
+
+// 复制链接功能
+const copyLink = (imageUrl) => {
+  const fullUrl = `${user.value.r2_custom_url}/${imageUrl}`;
+  navigator.clipboard.writeText(fullUrl)
+    .then(() => {
+      toast.showToast('链接已复制', 'success');
+    })
+    .catch(() => {
+      toast.showToast('复制失败', 'error');
+    });
+};
 
 // 获取图片列表
 const fetchImages = async () => {
   try {
-    loading.value = true
-    const api = useApi()
-    const data = await api.getImages({
-      page: currentPage.value,
-      pageSize: pageSize.value
-    })
+    loading.value = true;
+    const api = useApi();
+    const data = await api.getImages({ page: currentPage.value, pageSize: pageSize.value });
     if (data.success) {
-      images.value = data.data.list
-      total.value = data.data.pagination.total
-      totalPages.value = data.data.pagination.totalPages
+      images.value = data.data.list;
+      total.value = data.data.pagination.total;
+      totalPages.value = data.data.pagination.totalPages;
     } else {
-      images.value = []
-      error.value = data.message
+      images.value = [];
+      error.value = data.message;
     }
   } catch (err) {
-    error.value = '获取图片列表失败'
-    console.error(err)
+    error.value = '获取图片列表失败';
+    console.error(err);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
-// 修改单个删除方法
+// 删除图片
 const handleDelete = async (imageUrl) => {
-  if (!confirm('确定要删除这张图片吗？')) return
-
+  if (!confirm('确定要删除这张图片吗？')) return;
   try {
-    const api = useApi()
-    const success = await api.deleteImage([imageUrl])
+    const api = useApi();
+    const success = await api.deleteImage([imageUrl]);
     if (success) {
-      toast.showToast('删除成功', 'success')
-      await fetchImages()
+      toast.showToast('删除成功', 'success');
+      await fetchImages();
     } else {
-      throw new Error('删除失败')
+      throw new Error('删除失败');
     }
   } catch (err) {
-    toast.showToast('删除失败', 'error')
+    toast.showToast('删除失败', 'error');
   }
-}
+};
 
-// 修改批量删除方法
+// 批量删除
 const handleBatchDelete = async () => {
-  if (!confirm(`确定要删除选中的 ${selectedImages.value.length} 张图片吗？`)) return
-
+  if (!confirm(`确定要删除选中的 ${selectedImages.value.length} 张图片吗？`)) return;
   try {
-    const api = useApi()
-    const success = await api.deleteImage(selectedImages.value)
+    const api = useApi();
+    const success = await api.deleteImage(selectedImages.value);
     if (success) {
-      toast.showToast(`成功删除 ${selectedImages.value.length} 张图片`, 'success')
-      selectedImages.value = []
-      await fetchImages()
+      toast.showToast(`成功删除 ${selectedImages.value.length} 张图片`, 'success');
+      selectedImages.value = [];
+      await fetchImages();
     } else {
-      throw new Error('批量删除失败')
+      throw new Error('批量删除失败');
     }
   } catch (err) {
-    toast.showToast('批量删除失败', 'error')
+    toast.showToast('批量删除失败', 'error');
   }
-}
+};
 
-// 添加页码改变的处理方法
+// 分页
 const handlePageChange = (page) => {
-  currentPage.value = page
-  fetchImages()
-}
-
-// 添加计算页码范围的方法
+  currentPage.value = page;
+  fetchImages();
+};
 const pageNumbers = computed(() => {
-  const range = 2 // 当前页左右显示的页码数
-  let start = Math.max(1, currentPage.value - range)
-  let end = Math.min(totalPages.value, currentPage.value + range)
-
-  // 调整起始页，确保始终显示5个页码（如果总页数足够）
-  const length = end - start + 1
+  const range = 2;
+  let start = Math.max(1, currentPage.value - range);
+  let end = Math.min(totalPages.value, currentPage.value + range);
+  const length = end - start + 1;
   if (length < 5 && totalPages.value >= 5) {
     if (currentPage.value <= 3) {
-      end = Math.min(5, totalPages.value)
+      end = Math.min(5, totalPages.value);
     } else {
-      start = Math.max(1, totalPages.value - 4)
+      start = Math.max(1, totalPages.value - 4);
     }
   }
-
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
-})
-
-// 添加全选/取消全选方法
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+});
 const toggleSelectAll = () => {
   if (isAllSelected.value) {
-    // 如果当前是全选状态，则清空选择
-    selectedImages.value = []
+    selectedImages.value = [];
   } else {
-    // 如果当前不是全选状态，则选择所有图片
-    selectedImages.value = images.value.map(img => img.url)
+    selectedImages.value = images.value.map(img => img.url);
   }
-}
+};
 
 onMounted(() => {
-  fetchImages()
-})
+  fetchImages();
+});
 </script>
 
+<style scoped>
+/* 样式与原代码一致 */
 <style scoped>
 .images-page {
   position: relative;
@@ -467,5 +454,16 @@ onMounted(() => {
   .select-all {
     order: 1;
   }
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+}
 }
 </style>
